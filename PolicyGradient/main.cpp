@@ -35,7 +35,7 @@ b2Body* body;
 
 float boosters_vals[2] = { 0, 0 };
 
-vector<unsigned> topology = { 2, 6, 2 };
+vector<unsigned> topology = { 2, 3, 3, 2 };
 Net myNet(topology);
 
 int current_time = 0;
@@ -217,8 +217,8 @@ void reshape(int width, int height) {
 }
 
 void train() {
-	int epochs = 500;
-	int frames = 100;
+	int epochs = 5000;
+	int frames = 200;
 
 	for (int epoch = 0; epoch < epochs; epoch++) {
 		// start body center screen with random angle
@@ -226,9 +226,9 @@ void train() {
 		body->SetLinearVelocity(b2Vec2(0.0f, 0.0f));
 
 		// rnd ang vel
-		double random_val = (((rand() / (double)(RAND_MAX)) * 0.5) + 0.5) * (((rand() / (double)(RAND_MAX)) > 0.5) ? -1.0 : 1.0);
-		//body->SetAngularVelocity(random_val);
-		body->SetAngularVelocity(1.2);
+		double random_val = (((rand() / (double)(RAND_MAX)) * 1.0) + 0.5) * (((rand() / (double)(RAND_MAX)) > 0.5) ? -1.0 : 1.0);
+		body->SetAngularVelocity(random_val);
+		//body->SetAngularVelocity(0.2);
 
 		vector<training_data_entry> current_training;
 		vector<double> scores;
@@ -256,7 +256,7 @@ void train() {
 			if (i > 0) {
 				current_training[i - 1].score_delta = delta_score;
 
-				if (abs(delta_score) > max_delta_score) max_delta_score = abs(delta_score);
+				if (delta_score > max_delta_score) max_delta_score = delta_score;
 			}
 
 			net_inputs.clear();
@@ -264,6 +264,12 @@ void train() {
 			myNet.feedForward(net_inputs);
 
 			myNet.getResults(net_outputs);
+
+			if ((rand() % 100) < 5) {
+				net_outputs[0] = ((rand() / (double)RAND_MAX) * 0.8);
+				net_outputs[1] = ((rand() / (double)RAND_MAX) * 0.8);
+			}
+
 			boosters(net_outputs[0], net_outputs[1]);
 
 			training_data_entry current_entry = { input_angle, input_anvel, net_outputs[0], net_outputs[1], 0.0};
@@ -273,29 +279,18 @@ void train() {
 		}
 
 		vector<double> target_outputs;
-		/*
-		for (int i = 0; i < (int)(score / 5.0); i++) {
-			for (int t = 0; t < (int)current_training.size(); t++) {
-				net_inputs.clear();
-				net_inputs = { current_training[t].angle, current_training[t].anvel };
-				myNet.feedForward(net_inputs);
-
-				target_outputs.clear();
-				target_outputs = { current_training[t].boost_left, current_training[t].boost_right };
-				myNet.backProp(target_outputs);
-			}
-		}
-		*/
 		int num_valuable = 0;
 
 		if (max_delta_score > 0) {
-			double delta_score_scale = 2000.0; //(50.0 / max_delta_score);
+			double delta_score_scale = 500.0; //(50.0 / max_delta_score);
 
 
 			for (int t = 0; t < (int)current_training.size(); t++) {
-				//if (abs(current_training[t].score_delta) > (0.9 * max_delta_score)) {
+				if (current_training[t].score_delta > (0.8 * max_delta_score)) {
 					num_valuable++;
-					for (int i = 0; i < (int)glm::min(abs(current_training[t].score_delta * delta_score_scale), 400.0); i++) {
+
+					int numLoops = (int)glm::min(abs(current_training[t].score_delta * delta_score_scale), 200.0);
+					for (int i = 0; i < numLoops; i++) {
 					//for (int i = 0; i < 100; i++) {
 						net_inputs.clear();
 						net_inputs = { current_training[t].angle, current_training[t].anvel };
@@ -303,18 +298,19 @@ void train() {
 
 						target_outputs.clear();
 						target_outputs = { current_training[t].boost_left, current_training[t].boost_right };
-						/*
+						
 						if (current_training[t].score_delta > 0) {
 							myNet.backProp(target_outputs, 1.0);
 						}
+						/*
 						else {
 							myNet.backProp(target_outputs, -1.0);
 						}
 						*/
 						//myNet.backProp(target_outputs, 1.0);
-						myNet.backProp(target_outputs, current_training[t].score_delta);
+						//myNet.backProp(target_outputs, current_training[t].score_delta);
 					}
-				//}
+				}
 			}
 		}
 

@@ -1,7 +1,7 @@
 #include "NN.h"
 
 double Neuron::eta = 0.15; // overall net learning rate
-double Neuron::alpha = 0.5; // momentum, multiplier of last deltaWeight, [0.0..n]
+double Neuron::alpha = 0.55; // momentum, multiplier of last deltaWeight, [0.0..n]
 
 
 void Neuron::updateInputWeights(Layer &prevLayer, bool negative) {
@@ -17,12 +17,12 @@ void Neuron::updateInputWeights(Layer &prevLayer, bool negative) {
 		if (negative) {
 			newDeltaWeight =
 				// Individual input, magnified by the gradient and train rate:
-				-1 * eta
+				-1.0 * eta
 				* neuron.getOutputVal()
-				* m_gradient;
+				* m_gradient
 				// Also add momentum = a fraction of the previous delta weight
-				//- alpha
-				//* oldDeltaWeight;
+				- alpha
+				* oldDeltaWeight;
 		}
 		else {
 			newDeltaWeight =
@@ -67,7 +67,8 @@ double Neuron::transferFunction(double x) {
 
 double Neuron::transferFunctionDerivative(double x) {
 	// tanh derivative
-	return 1.0 - x * x;
+	//return 1.0 - x * x;
+	return (1.0 - pow(tanh(x), 2));
 }
 
 void Neuron::feedForward(const Layer &prevLayer) {
