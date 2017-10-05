@@ -27,7 +27,7 @@ float32 timeStep = 1.0f / 30.0f;
 int32 velocityIterations = 6;
 int32 positionIterations = 2;
 
-b2Vec2 gravity(0.0f, 0.0f);
+b2Vec2 gravity(0.0f, -1.0f);
 b2World world(gravity);
 
 b2Body* body;
@@ -35,14 +35,14 @@ b2Body* body;
 
 float boosters_vals[2] = { 0, 0 };
 
-vector<unsigned> topology = { 2, 3, 3, 2 };
+vector<unsigned> topology = { 6, 4, 4, 2 };
 Net myNet(topology);
 
 int current_time = 0;
 int max_time = 1000;
 
 struct training_data_entry {
-	float angle, anvel;
+	float angle, anvel, horzvel, vertvel, targetdx, targetdy;
 	float boost_left, boost_right;
 
 	float score_delta;
@@ -53,22 +53,22 @@ vector<training_data_entry> training_data;
 vector<training_data_entry> self_training_data;
 
 void init_world() {
-	b2BodyDef groundBodyDef;
-	groundBodyDef.position.Set(0.0f, -10.0f);
+	//b2BodyDef groundBodyDef;
+	//groundBodyDef.position.Set(0.0f, -10.0f);
 
 	// Call the body factory which allocates memory for the ground body
 	// from a pool and creates the ground box shape (also from a pool).
 	// The body is also added to the world.
-	b2Body* groundBody = world.CreateBody(&groundBodyDef);
+	//b2Body* groundBody = world.CreateBody(&groundBodyDef);
 
 	// Define the ground box shape.
-	b2PolygonShape groundBox;
+	//b2PolygonShape groundBox;
 
 	// The extents are the half-widths of the box.
-	groundBox.SetAsBox(50.0f, 10.0f);
+	//groundBox.SetAsBox(50.0f, 10.0f);
 
 	// Add the ground fixture to the ground body.
-	groundBody->CreateFixture(&groundBox, 0.0f);
+	//groundBody->CreateFixture(&groundBox, 0.0f);
 
 	// Define the dynamic body. We set its position and call the body factory.
 	b2BodyDef bodyDef;
@@ -190,12 +190,22 @@ void force_redraw(int value) {
 
 	float input_angle = glm::mod((float)body->GetAngle() - M_PI, M_PI * 2.0f) / (M_PI * 2.0f);
 	float input_anvel = glm::clamp(body->GetAngularVelocity() + 2.0f, 0.0f, 4.0f) / 4.0f;
+	float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 2.0f, 0.0f, 4.0f) / 4.0f;
+	float input_vertvel = glm::clamp(body->GetLinearVelocity().y + 2.0f, 0.0f, 4.0f) / 4.0f;
+
+	b2Vec2 pos = body->GetPosition();
+	b2Vec2 target(16.0f, 12.0f);
+	b2Vec2 target_delta = (target - pos);
+	float input_posx = (target_delta.x * view_scale) / (float)SCREEN_W;
+	float input_posy = (target_delta.y * view_scale) / (float)SCREEN_H;
+	input_posx = glm::clamp(input_posx + 1.0f, 0.0f, 2.0f) / 2.0f;
+	input_posy = glm::clamp(input_posy + 1.0f, 0.0f, 2.0f) / 2.0f;
 
 	vector<double> net_inputs;
 	vector<double> net_outputs;
 
 	net_inputs.clear();
-	net_inputs = { input_angle, input_anvel };
+	net_inputs = { input_angle, input_anvel, input_horzvel, input_vertvel, input_posx, input_posy };
 	myNet.feedForward(net_inputs);
 
 	myNet.getResults(net_outputs);
@@ -217,9 +227,10 @@ void reshape(int width, int height) {
 }
 
 void train() {
-	int epochs = 5000;
-	int frames = 200;
+	int epochs = 8000;
+	int frames = 300;
 
+	float max_total_score = 0.0f;
 	for (int epoch = 0; epoch < epochs; epoch++) {
 		// start body center screen with random angle
 		body->SetTransform(b2Vec2(16.0, 12.0), 0.0f);
@@ -233,6 +244,7 @@ void train() {
 		vector<training_data_entry> current_training;
 		vector<double> scores;
 		float score = 0.0f;
+		float total_score = 0.0f;
 
 		vector<double> net_inputs;
 		vector<double> net_outputs;
@@ -240,13 +252,31 @@ void train() {
 		double prev_score = 0.0f; // use for immediate reward
 		double max_delta_score = 0.0f;
 
+		double sixth = 1.0 / 6.0;
+
 		for (int i = 0; i < frames; i++) {
 			float input_angle = glm::mod((float)body->GetAngle() - M_PI, M_PI * 2.0f) / (M_PI * 2.0f);
 			float input_anvel = glm::clamp(body->GetAngularVelocity() + 2.0f, 0.0f, 4.0f) / 4.0f;
+			float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 2.0f, 0.0f, 4.0f) / 4.0f;
+			float input_vertvel = glm::clamp(body->GetLinearVelocity().y + 2.0f, 0.0f, 4.0f) / 4.0f;
+
+			b2Vec2 pos = body->GetPosition();
+			b2Vec2 target(16.0f, 12.0f);
+			b2Vec2 target_delta = (target - pos);
+			float input_posx = (target_delta.x * view_scale) / (float)SCREEN_W;
+			float input_posy = (target_delta.y * view_scale) / (float)SCREEN_H;
+			input_posx = glm::clamp(input_posx + 1.0f, 0.0f, 2.0f) / 2.0f;
+			input_posy = glm::clamp(input_posy + 1.0f, 0.0f, 2.0f) / 2.0f;
 
 			// increment score
-			double current_score = ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0);
-			//score += current_score;
+			double current_score = ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0) * ((0.5 - abs(input_horzvel - 0.5)) * 2.0) * ((0.5 - abs(input_vertvel - 0.5)) * 2.0) * ((0.5 - abs(input_posx - 0.5)) * 2.0) * ((0.5 - abs(input_posy - 0.5)) * 2.0);
+			/*
+			double current_score = 
+				sixth * 2.0 * ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0)
+				+ sixth * 2.0 * ((0.5 - abs(input_horzvel - 0.5)) * 2.0) * ((0.5 - abs(input_vertvel - 0.5)) * 2.0) 
+				+ sixth * 2.0 * ((0.5 - abs(input_posx - 0.5)) * 2.0) * ((0.5 - abs(input_posy - 0.5)) * 2.0);
+			*/
+			total_score += current_score;
 
 			double delta_score = current_score - prev_score;
 			prev_score = current_score;
@@ -260,19 +290,19 @@ void train() {
 			}
 
 			net_inputs.clear();
-			net_inputs = { input_angle, input_anvel };
+			net_inputs = { input_angle, input_anvel, input_horzvel, input_vertvel, input_posx, input_posy };
 			myNet.feedForward(net_inputs);
 
 			myNet.getResults(net_outputs);
 
-			if ((rand() % 100) < 5) {
+			if (((rand() % 100) < 4) && (epoch < 4000)) {
 				net_outputs[0] = ((rand() / (double)RAND_MAX) * 0.8);
 				net_outputs[1] = ((rand() / (double)RAND_MAX) * 0.8);
 			}
 
 			boosters(net_outputs[0], net_outputs[1]);
 
-			training_data_entry current_entry = { input_angle, input_anvel, net_outputs[0], net_outputs[1], 0.0};
+			training_data_entry current_entry = { input_angle, input_anvel, input_horzvel, input_vertvel, input_posx, input_posy, net_outputs[0], net_outputs[1], 0.0};
 			current_training.push_back(current_entry);
 
 			world.Step(timeStep, velocityIterations, positionIterations);
@@ -282,44 +312,52 @@ void train() {
 		int num_valuable = 0;
 
 		if (max_delta_score > 0) {
-			double delta_score_scale = 500.0; //(50.0 / max_delta_score);
+			double delta_score_scale = 1000.0; // 4000.0 * (total_score / (double)frames); //(50.0 / max_delta_score);
 
+			if (total_score > (max_total_score * 0.0)) {
+				if (total_score > max_total_score) {
+					max_total_score = total_score;
+				}
 
-			for (int t = 0; t < (int)current_training.size(); t++) {
-				if (current_training[t].score_delta > (0.8 * max_delta_score)) {
-					num_valuable++;
+				for (int t = 0; t < (int)current_training.size(); t++) {
+					if (current_training[t].score_delta > (0.1 * max_delta_score)) {
+						num_valuable++;
 
-					int numLoops = (int)glm::min(abs(current_training[t].score_delta * delta_score_scale), 200.0);
-					for (int i = 0; i < numLoops; i++) {
-					//for (int i = 0; i < 100; i++) {
-						net_inputs.clear();
-						net_inputs = { current_training[t].angle, current_training[t].anvel };
-						myNet.feedForward(net_inputs);
+						int numLoops = (int)glm::min(abs(current_training[t].score_delta * delta_score_scale), 200.0);
+						for (int i = 0; i < numLoops; i++) {
+							//for (int i = 0; i < 100; i++) {
+							net_inputs.clear();
+							net_inputs = { current_training[t].angle, current_training[t].anvel, current_training[t].horzvel, current_training[t].vertvel, current_training[t].targetdx, current_training[t].targetdy };
+							myNet.feedForward(net_inputs);
 
-						target_outputs.clear();
-						target_outputs = { current_training[t].boost_left, current_training[t].boost_right };
-						
-						if (current_training[t].score_delta > 0) {
-							myNet.backProp(target_outputs, 1.0);
+							target_outputs.clear();
+							target_outputs = { current_training[t].boost_left, current_training[t].boost_right };
+
+							if (current_training[t].score_delta > 0) {
+								myNet.backProp(target_outputs, 1.0);
+							}
+							/*
+							else {
+								myNet.backProp(target_outputs, -1.0);
+							}
+							*/
+							//myNet.backProp(target_outputs, 1.0);
+							//myNet.backProp(target_outputs, current_training[t].score_delta);
 						}
-						/*
-						else {
-							myNet.backProp(target_outputs, -1.0);
-						}
-						*/
-						//myNet.backProp(target_outputs, 1.0);
-						//myNet.backProp(target_outputs, current_training[t].score_delta);
 					}
 				}
 			}
 		}
 
-		printf("SCORE: %f | MAX DELTA: %f | USED: %d\n", score, max_delta_score, num_valuable);
+		printf("SCORE: %f \t| MAX DELTA: %f \t| USED: %d \t| TSCORE %f \t| EPOCH: %d\n", score, max_delta_score, num_valuable, total_score, epoch);
 	}
 
 }
 
 int main(int argc, const char * argv[]) {
+	srand(1337);
+
+
 	glutInit(&argc, const_cast<char**>(argv));
 
 	glutInitDisplayMode(GLUT_RGBA | GLUT_ALPHA);
