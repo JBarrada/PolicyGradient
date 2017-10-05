@@ -35,7 +35,7 @@ b2Body* body;
 
 float boosters_vals[2] = { 0, 0 };
 
-vector<unsigned> topology = { 6, 4, 4, 2 };
+vector<unsigned> topology = { 3, 5, 2 };
 Net myNet(topology);
 
 int current_time = 0;
@@ -190,8 +190,11 @@ void force_redraw(int value) {
 
 	float input_angle = glm::mod((float)body->GetAngle() - M_PI, M_PI * 2.0f) / (M_PI * 2.0f);
 	float input_anvel = glm::clamp(body->GetAngularVelocity() + 2.0f, 0.0f, 4.0f) / 4.0f;
-	float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 2.0f, 0.0f, 4.0f) / 4.0f;
+	//float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 2.0f, 0.0f, 4.0f) / 4.0f;
+	float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 1.0f, 0.0f, 2.0f) / 2.0f;
 	float input_vertvel = glm::clamp(body->GetLinearVelocity().y + 2.0f, 0.0f, 4.0f) / 4.0f;
+
+	input_angle = glm::clamp(((input_angle - 0.5) * 4.0) + 2.0, 0.0, 4.0) / 4.0;
 
 	b2Vec2 pos = body->GetPosition();
 	b2Vec2 target(16.0f, 12.0f);
@@ -205,7 +208,7 @@ void force_redraw(int value) {
 	vector<double> net_outputs;
 
 	net_inputs.clear();
-	net_inputs = { input_angle, input_anvel, input_horzvel, input_vertvel, input_posx, input_posy };
+	net_inputs = { input_angle, input_anvel, input_horzvel };// , input_vertvel, input_posx, input_posy };
 	myNet.feedForward(net_inputs);
 
 	myNet.getResults(net_outputs);
@@ -227,8 +230,11 @@ void reshape(int width, int height) {
 }
 
 void train() {
-	int epochs = 8000;
-	int frames = 300;
+	int epochs = 1000;
+	int frames = 200;
+
+	float avg_score = 0.0f;
+	float avg_score_count = 0.0f;
 
 	float max_total_score = 0.0f;
 	for (int epoch = 0; epoch < epochs; epoch++) {
@@ -258,7 +264,10 @@ void train() {
 			float input_angle = glm::mod((float)body->GetAngle() - M_PI, M_PI * 2.0f) / (M_PI * 2.0f);
 			float input_anvel = glm::clamp(body->GetAngularVelocity() + 2.0f, 0.0f, 4.0f) / 4.0f;
 			float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 2.0f, 0.0f, 4.0f) / 4.0f;
+			//float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 1.0f, 0.0f, 2.0f) / 2.0f;
 			float input_vertvel = glm::clamp(body->GetLinearVelocity().y + 2.0f, 0.0f, 4.0f) / 4.0f;
+
+			//input_angle = glm::clamp(((input_angle - 0.5) * 4.0) + 2.0, 0.0, 4.0) / 4.0;
 
 			b2Vec2 pos = body->GetPosition();
 			b2Vec2 target(16.0f, 12.0f);
@@ -269,7 +278,7 @@ void train() {
 			input_posy = glm::clamp(input_posy + 1.0f, 0.0f, 2.0f) / 2.0f;
 
 			// increment score
-			double current_score = ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0) * ((0.5 - abs(input_horzvel - 0.5)) * 2.0) * ((0.5 - abs(input_vertvel - 0.5)) * 2.0) * ((0.5 - abs(input_posx - 0.5)) * 2.0) * ((0.5 - abs(input_posy - 0.5)) * 2.0);
+			double current_score = ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0) * ((0.5 - abs(input_horzvel - 0.5)) * 2.0); // *((0.5 - abs(input_vertvel - 0.5)) * 2.0) * ((0.5 - abs(input_posx - 0.5)) * 2.0) * ((0.5 - abs(input_posy - 0.5)) * 2.0);
 			/*
 			double current_score = 
 				sixth * 2.0 * ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0)
@@ -290,29 +299,33 @@ void train() {
 			}
 
 			net_inputs.clear();
-			net_inputs = { input_angle, input_anvel, input_horzvel, input_vertvel, input_posx, input_posy };
+			net_inputs = { input_angle, input_anvel, input_horzvel };//, input_vertvel, input_posx, input_posy };
 			myNet.feedForward(net_inputs);
 
 			myNet.getResults(net_outputs);
 
-			if (((rand() % 100) < 4) && (epoch < 4000)) {
+			if (((rand() % 100) < 5) && (epoch < 4000)) {
 				net_outputs[0] = ((rand() / (double)RAND_MAX) * 0.8);
 				net_outputs[1] = ((rand() / (double)RAND_MAX) * 0.8);
 			}
 
 			boosters(net_outputs[0], net_outputs[1]);
 
+			//training_data_entry current_entry = { input_angle, input_anvel, input_horzvel, net_outputs[0], net_outputs[1], 0.0 };
 			training_data_entry current_entry = { input_angle, input_anvel, input_horzvel, input_vertvel, input_posx, input_posy, net_outputs[0], net_outputs[1], 0.0};
 			current_training.push_back(current_entry);
 
 			world.Step(timeStep, velocityIterations, positionIterations);
 		}
 
+		avg_score += total_score;
+		avg_score_count += 1.0f;
+
 		vector<double> target_outputs;
 		int num_valuable = 0;
 
 		if (max_delta_score > 0) {
-			double delta_score_scale = 1000.0; // 4000.0 * (total_score / (double)frames); //(50.0 / max_delta_score);
+			double delta_score_scale = 900.0; // 4000.0 * (total_score / (double)frames); //(50.0 / max_delta_score);
 
 			if (total_score > (max_total_score * 0.0)) {
 				if (total_score > max_total_score) {
@@ -320,14 +333,14 @@ void train() {
 				}
 
 				for (int t = 0; t < (int)current_training.size(); t++) {
-					if (current_training[t].score_delta > (0.1 * max_delta_score)) {
+					if (current_training[t].score_delta > (0.75 * max_delta_score)) {
 						num_valuable++;
 
-						int numLoops = (int)glm::min(abs(current_training[t].score_delta * delta_score_scale), 200.0);
+						int numLoops = (int)glm::min(abs(current_training[t].score_delta * delta_score_scale), 500.0);
 						for (int i = 0; i < numLoops; i++) {
 							//for (int i = 0; i < 100; i++) {
 							net_inputs.clear();
-							net_inputs = { current_training[t].angle, current_training[t].anvel, current_training[t].horzvel, current_training[t].vertvel, current_training[t].targetdx, current_training[t].targetdy };
+							net_inputs = { current_training[t].angle, current_training[t].anvel , current_training[t].horzvel };// , current_training[t].vertvel, current_training[t].targetdx, current_training[t].targetdy };
 							myNet.feedForward(net_inputs);
 
 							target_outputs.clear();
@@ -352,6 +365,7 @@ void train() {
 		printf("SCORE: %f \t| MAX DELTA: %f \t| USED: %d \t| TSCORE %f \t| EPOCH: %d\n", score, max_delta_score, num_valuable, total_score, epoch);
 	}
 
+	printf("AVG SCORE: %f\n", avg_score / avg_score_count);
 }
 
 int main(int argc, const char * argv[]) {

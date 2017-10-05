@@ -1,8 +1,11 @@
 #include "NN.h"
 
 double Neuron::eta = 0.15; // overall net learning rate
-double Neuron::alpha = 0.55; // momentum, multiplier of last deltaWeight, [0.0..n]
+double Neuron::alpha = 0.6; // momentum, multiplier of last deltaWeight, [0.0..n]
 
+
+// .3  .75
+// .15 .6
 
 void Neuron::updateInputWeights(Layer &prevLayer, bool negative) {
 	// The weights to be updated are in the Connection container
