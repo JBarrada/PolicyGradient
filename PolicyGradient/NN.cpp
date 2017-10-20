@@ -1,7 +1,7 @@
 #include "NN.h"
 
-double Neuron::eta = 0.15; // overall net learning rate
-double Neuron::alpha = 0.6; // momentum, multiplier of last deltaWeight, [0.0..n]
+double Neuron::eta = 0.06; // overall net learning rate
+double Neuron::alpha = 0.4; // momentum, multiplier of last deltaWeight, [0.0..n]
 
 
 // .3  .75
@@ -20,12 +20,9 @@ void Neuron::updateInputWeights(Layer &prevLayer, bool negative) {
 		if (negative) {
 			newDeltaWeight =
 				// Individual input, magnified by the gradient and train rate:
-				-1.0 * eta
+				-0.1 * eta
 				* neuron.getOutputVal()
-				* m_gradient
-				// Also add momentum = a fraction of the previous delta weight
-				- alpha
-				* oldDeltaWeight;
+				* m_gradient;
 		}
 		else {
 			newDeltaWeight =
@@ -37,6 +34,9 @@ void Neuron::updateInputWeights(Layer &prevLayer, bool negative) {
 				+ alpha
 				* oldDeltaWeight;
 		}
+
+		// weight decay
+		// neuron.m_outputWeights[m_myIndex].weight -= (neuron.m_outputWeights[m_myIndex].weight * 0.001);
 
 		neuron.m_outputWeights[m_myIndex].deltaWeight = newDeltaWeight;
 		neuron.m_outputWeights[m_myIndex].weight += newDeltaWeight;
@@ -66,12 +66,16 @@ void Neuron::calcOutputGradients(double targetVals) {
 double Neuron::transferFunction(double x) {
 	// tanh - output range [-1.0..1.0]
 	return tanh(x);
+	//return (1.0 / (1.0 + exp(-x)));
+
 }
 
 double Neuron::transferFunctionDerivative(double x) {
 	// tanh derivative
 	//return 1.0 - x * x;
 	return (1.0 - pow(tanh(x), 2));
+	//double sigNormal = transferFunction(x);
+	//return (sigNormal * (1.0 - sigNormal));
 }
 
 void Neuron::feedForward(const Layer &prevLayer) {

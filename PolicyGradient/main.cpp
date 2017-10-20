@@ -35,7 +35,7 @@ b2Body* body;
 
 float boosters_vals[2] = { 0, 0 };
 
-vector<unsigned> topology = { 3, 5, 2 };
+vector<unsigned> topology = { 6, 8, 5, 3, 2 };
 Net myNet(topology);
 
 int current_time = 0;
@@ -188,13 +188,11 @@ void boosters(float left, float right) {
 void force_redraw(int value) {
 	glutPostRedisplay();
 
+	// sig 0 -> 0.5 -> 1
 	float input_angle = glm::mod((float)body->GetAngle() - M_PI, M_PI * 2.0f) / (M_PI * 2.0f);
 	float input_anvel = glm::clamp(body->GetAngularVelocity() + 2.0f, 0.0f, 4.0f) / 4.0f;
-	//float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 2.0f, 0.0f, 4.0f) / 4.0f;
-	float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 1.0f, 0.0f, 2.0f) / 2.0f;
+	float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 2.0f, 0.0f, 4.0f) / 4.0f;
 	float input_vertvel = glm::clamp(body->GetLinearVelocity().y + 2.0f, 0.0f, 4.0f) / 4.0f;
-
-	input_angle = glm::clamp(((input_angle - 0.5) * 4.0) + 2.0, 0.0, 4.0) / 4.0;
 
 	b2Vec2 pos = body->GetPosition();
 	b2Vec2 target(16.0f, 12.0f);
@@ -207,8 +205,17 @@ void force_redraw(int value) {
 	vector<double> net_inputs;
 	vector<double> net_outputs;
 
+
+	// tanh -1 -> 1
+	input_angle = (input_angle * 2.0) - 1.0;
+	input_anvel = (input_anvel * 2.0) - 1.0;
+	input_horzvel = (input_horzvel * 2.0) - 1.0;
+	input_vertvel = (input_vertvel * 2.0) - 1.0;
+	input_posx = (input_posx * 2.0) - 1.0;
+	input_posy = (input_posy * 2.0) - 1.0;
+
 	net_inputs.clear();
-	net_inputs = { input_angle, input_anvel, input_horzvel };// , input_vertvel, input_posx, input_posy };
+	net_inputs = { input_angle, input_anvel, input_horzvel , input_vertvel, input_posx, input_posy };
 	myNet.feedForward(net_inputs);
 
 	myNet.getResults(net_outputs);
@@ -230,8 +237,8 @@ void reshape(int width, int height) {
 }
 
 void train() {
-	int epochs = 1000;
-	int frames = 200;
+	int epochs = 3000;
+	int frames = 400;
 
 	float avg_score = 0.0f;
 	float avg_score_count = 0.0f;
@@ -261,13 +268,11 @@ void train() {
 		double sixth = 1.0 / 6.0;
 
 		for (int i = 0; i < frames; i++) {
+			// sig 0 -> 0.5 -> 1
 			float input_angle = glm::mod((float)body->GetAngle() - M_PI, M_PI * 2.0f) / (M_PI * 2.0f);
 			float input_anvel = glm::clamp(body->GetAngularVelocity() + 2.0f, 0.0f, 4.0f) / 4.0f;
 			float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 2.0f, 0.0f, 4.0f) / 4.0f;
-			//float input_horzvel = glm::clamp(body->GetLinearVelocity().x + 1.0f, 0.0f, 2.0f) / 2.0f;
 			float input_vertvel = glm::clamp(body->GetLinearVelocity().y + 2.0f, 0.0f, 4.0f) / 4.0f;
-
-			//input_angle = glm::clamp(((input_angle - 0.5) * 4.0) + 2.0, 0.0, 4.0) / 4.0;
 
 			b2Vec2 pos = body->GetPosition();
 			b2Vec2 target(16.0f, 12.0f);
@@ -278,7 +283,8 @@ void train() {
 			input_posy = glm::clamp(input_posy + 1.0f, 0.0f, 2.0f) / 2.0f;
 
 			// increment score
-			double current_score = ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0) * ((0.5 - abs(input_horzvel - 0.5)) * 2.0); // *((0.5 - abs(input_vertvel - 0.5)) * 2.0) * ((0.5 - abs(input_posx - 0.5)) * 2.0) * ((0.5 - abs(input_posy - 0.5)) * 2.0);
+			//double current_score = ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0) * ((0.5 - abs(input_horzvel - 0.5)) * 2.0) * ((0.5 - abs(input_vertvel - 0.5)) * 2.0) * ((0.5 - abs(input_posx - 0.5)) * 2.0) * ((0.5 - abs(input_posy - 0.5)) * 2.0);
+			double current_score = ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0) * ((0.5 - abs(input_posx - 0.5)) * 2.0) * ((0.5 - abs(input_posy - 0.5)) * 2.0);
 			/*
 			double current_score = 
 				sixth * 2.0 * ((0.5 - abs(input_angle - 0.5)) * 2.0) * ((0.5 - abs(input_anvel - 0.5)) * 2.0)
@@ -298,13 +304,23 @@ void train() {
 				if (delta_score > max_delta_score) max_delta_score = delta_score;
 			}
 
+
+			// tanh -1 -> 1
+			input_angle = (input_angle * 2.0) - 1.0;
+			input_anvel = (input_anvel * 2.0) - 1.0;
+			input_horzvel = (input_horzvel * 2.0) - 1.0;
+			input_vertvel = (input_vertvel * 2.0) - 1.0;
+			input_posx = (input_posx * 2.0) - 1.0;
+			input_posy = (input_posy * 2.0) - 1.0;
+
+
 			net_inputs.clear();
-			net_inputs = { input_angle, input_anvel, input_horzvel };//, input_vertvel, input_posx, input_posy };
+			net_inputs = { input_angle, input_anvel, input_horzvel, input_vertvel, input_posx, input_posy };
 			myNet.feedForward(net_inputs);
 
 			myNet.getResults(net_outputs);
 
-			if (((rand() % 100) < 5) && (epoch < 4000)) {
+			if (((rand() % 100) < 5)) {
 				net_outputs[0] = ((rand() / (double)RAND_MAX) * 0.8);
 				net_outputs[1] = ((rand() / (double)RAND_MAX) * 0.8);
 			}
@@ -325,7 +341,7 @@ void train() {
 		int num_valuable = 0;
 
 		if (max_delta_score > 0) {
-			double delta_score_scale = 900.0; // 4000.0 * (total_score / (double)frames); //(50.0 / max_delta_score);
+			double delta_score_scale = 100.0; // 4000.0 * (total_score / (double)frames); //(50.0 / max_delta_score);
 
 			if (total_score > (max_total_score * 0.0)) {
 				if (total_score > max_total_score) {
@@ -336,11 +352,11 @@ void train() {
 					if (current_training[t].score_delta > (0.75 * max_delta_score)) {
 						num_valuable++;
 
-						int numLoops = (int)glm::min(abs(current_training[t].score_delta * delta_score_scale), 500.0);
+						int numLoops = (int)glm::min(abs(current_training[t].score_delta * delta_score_scale), 100.0);
 						for (int i = 0; i < numLoops; i++) {
 							//for (int i = 0; i < 100; i++) {
 							net_inputs.clear();
-							net_inputs = { current_training[t].angle, current_training[t].anvel , current_training[t].horzvel };// , current_training[t].vertvel, current_training[t].targetdx, current_training[t].targetdy };
+							net_inputs = { current_training[t].angle, current_training[t].anvel , current_training[t].horzvel, current_training[t].vertvel, current_training[t].targetdx, current_training[t].targetdy };
 							myNet.feedForward(net_inputs);
 
 							target_outputs.clear();
@@ -357,6 +373,22 @@ void train() {
 							//myNet.backProp(target_outputs, 1.0);
 							//myNet.backProp(target_outputs, current_training[t].score_delta);
 						}
+					}
+					else {
+						//if (current_training[t].score_delta < 0.0) {
+						//	int numLoops = (int)glm::min(abs(current_training[t].score_delta * delta_score_scale * 0.2), 200.0);
+
+						//	for (int i = 0; i < numLoops; i++) {
+						//		net_inputs.clear();
+						//		net_inputs = { current_training[t].angle, current_training[t].anvel , current_training[t].horzvel, current_training[t].vertvel, current_training[t].targetdx, current_training[t].targetdy };
+						//		myNet.feedForward(net_inputs);
+
+						//		target_outputs.clear();
+						//		target_outputs = { current_training[t].boost_left, current_training[t].boost_right };
+
+						//		myNet.backProp(target_outputs, -1.0);
+						//	}
+						//}
 					}
 				}
 			}
