@@ -237,8 +237,8 @@ void reshape(int width, int height) {
 }
 
 void train() {
-	int epochs = 3000;
-	int frames = 400;
+	int epochs = 4000;
+	int frames = 500;
 
 	float avg_score = 0.0f;
 	float avg_score_count = 0.0f;
@@ -341,7 +341,7 @@ void train() {
 		int num_valuable = 0;
 
 		if (max_delta_score > 0) {
-			double delta_score_scale = 100.0; // 4000.0 * (total_score / (double)frames); //(50.0 / max_delta_score);
+			double delta_score_scale = 200.0; // 4000.0 * (total_score / (double)frames); //(50.0 / max_delta_score);
 
 			if (total_score > (max_total_score * 0.0)) {
 				if (total_score > max_total_score) {
