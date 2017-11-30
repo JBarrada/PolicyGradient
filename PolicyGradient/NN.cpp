@@ -1,13 +1,13 @@
 #include "NN.h"
 
-double Neuron::eta = 0.06; // overall net learning rate
-double Neuron::alpha = 0.4; // momentum, multiplier of last deltaWeight, [0.0..n]
+double Neuron::eta = 0.05; // overall net learning rate
+double Neuron::alpha = 0.7; // momentum, multiplier of last deltaWeight, [0.0..n]
 
 
 // .3  .75
 // .15 .6
 
-void Neuron::updateInputWeights(Layer &prevLayer, bool negative) {
+void Neuron::updateInputWeights(Layer &prevLayer, bool update) {
 	// The weights to be updated are in the Connection container
 	// in the nuerons in the preceding layer
 
@@ -17,29 +17,20 @@ void Neuron::updateInputWeights(Layer &prevLayer, bool negative) {
 
 		double newDeltaWeight = 0.0;
 
-		if (negative) {
-			newDeltaWeight =
-				// Individual input, magnified by the gradient and train rate:
-				-0.1 * eta
-				* neuron.getOutputVal()
-				* m_gradient;
-		}
-		else {
-			newDeltaWeight =
-				// Individual input, magnified by the gradient and train rate:
-				eta
-				* neuron.getOutputVal()
-				* m_gradient
-				// Also add momentum = a fraction of the previous delta weight
-				+ alpha
-				* oldDeltaWeight;
-		}
-
-		// weight decay
-		// neuron.m_outputWeights[m_myIndex].weight -= (neuron.m_outputWeights[m_myIndex].weight * 0.001);
+		newDeltaWeight =
+			// Individual input, magnified by the gradient and train rate:
+			eta
+			* neuron.getOutputVal()
+			* m_gradient
+			// Also add momentum = a fraction of the previous delta weight
+			+ alpha
+			* oldDeltaWeight;
 
 		neuron.m_outputWeights[m_myIndex].deltaWeight = newDeltaWeight;
 		neuron.m_outputWeights[m_myIndex].weight += newDeltaWeight;
+		
+		// weight decay
+		neuron.m_outputWeights[m_myIndex].weight -= (neuron.m_outputWeights[m_myIndex].weight * 0.0001 * eta);
 	}
 }
 double Neuron::sumDOW(const Layer &nextLayer) const {
@@ -112,7 +103,7 @@ void Net::getResults(vector<double> &resultVals) const {
 	}
 }
 
-void Net::backProp(const std::vector<double> &targetVals, double coeff) {
+void Net::backProp(const std::vector<double> &targetVals, bool update) {
 	// Calculate overal net error (RMS of output neuron errors)
 
 	Layer &outputLayer = m_layers.back();
@@ -146,13 +137,14 @@ void Net::backProp(const std::vector<double> &targetVals, double coeff) {
 
 	// For all layers from outputs to first hidden layer,
 	// update connection weights
+	if (update) {
+		for (unsigned layerNum = m_layers.size() - 1; layerNum > 0; --layerNum) {
+			Layer &layer = m_layers[layerNum];
+			Layer &prevLayer = m_layers[layerNum - 1];
 
-	for (unsigned layerNum = m_layers.size() - 1; layerNum > 0; --layerNum) {
-		Layer &layer = m_layers[layerNum];
-		Layer &prevLayer = m_layers[layerNum - 1];
-
-		for (unsigned n = 0; n < layer.size() - 1; ++n) {
-			layer[n].updateInputWeights(prevLayer, (coeff < 0));
+			for (unsigned n = 0; n < layer.size() - 1; ++n) {
+				layer[n].updateInputWeights(prevLayer, update);
+			}
 		}
 	}
 }

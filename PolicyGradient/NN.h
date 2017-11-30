@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <cassert>
+#include <numeric>
 
 using namespace std;
 
@@ -34,7 +35,7 @@ public:
 	void feedForward(const Layer &prevLayer);
 	void calcOutputGradients(double targetVals);
 	void calcHiddenGradients(const Layer &nextLayer);
-	void updateInputWeights(Layer &prevLayer, bool negative);
+	void updateInputWeights(Layer &prevLayer, bool update);
 };
 
 
@@ -42,7 +43,7 @@ class Net {
 public:
 	Net(const vector<unsigned> &topology);
 	void feedForward(const vector<double> &inputVals);
-	void backProp(const vector<double> &targetVals, double coeff);
+	void backProp(const vector<double> &targetVals, bool update);
 	void getResults(vector<double> &resultVals) const;
 	double getRecentAverageError(void) const { return m_recentAverageError; }
 
